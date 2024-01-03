@@ -1,6 +1,8 @@
 import 'dart:developer';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:dummy/main.dart';
+import 'package:dummy/models/remote_signal_public_info_model.dart';
+import 'package:dummy/models/signal_protocol_info_model.dart';
 import 'package:dummy/models/user_model.dart';
 import 'package:dummy/utils/encryption_key_manager.dart';
 import 'package:dummy/utils/aes_gcm_encryption.dart';
@@ -38,18 +40,51 @@ class ChatManager {
   }
 
   // generate a shared secret key with the public key of the recipient
-  static Future getUserKeyPair(
-      {required String userId}) async {
-    DocumentSnapshot userInfo = await FirebaseFirestore.instance
-        .collection("users")
-        .doc(userId)
-        .get();
+  static Future getUserKeyPair({required String userId}) async {
+    DocumentSnapshot userInfo =
+        await FirebaseFirestore.instance.collection("users").doc(userId).get();
 
     if (userInfo.exists) {
       return UserModel.fromJson(userInfo.data() as Map<String, dynamic>);
     }
 
     return null;
+  }
+
+  static Future<bool> storeLocalUserSignalInfo(
+      {required String userId,
+      required Map<String, dynamic> publicSignalInfo}) async {
+    try {
+      await FirebaseFirestore.instance
+          .collection("users")
+          .doc(userId)
+          .set({"publicSignalInfo": publicSignalInfo});
+
+      return true;
+    } catch (e, st) {
+      log(e.toString(), stackTrace: st);
+      return false;
+    }
+  }
+
+  static Future getUserSignalInfo({required String userId}) async {
+    try {
+      DocumentSnapshot documentSnapshot = await FirebaseFirestore.instance
+          .collection("users")
+          .doc(userId)
+          .get();
+
+      if (documentSnapshot.exists) {
+        return RemoteSignalPublicInfoModel.fromMap(
+            documentSnapshot.get("publicSignalInfo")
+        );
+      }
+
+      return "User does not exist";
+    } catch (e, st) {
+      log(e.toString(), stackTrace: st);
+      return "Unable to get remote user signal info";
+    }
   }
 
   /* Start a new conversation with the respondent where the messageID
@@ -59,7 +94,7 @@ class ChatManager {
       {required String recipientId,
       required String existingChatId,
       required String chat,
-      required String recipientPushToken,
+      // required String recipientPushToken,
       required Function(String) onSubmitNewChat,
       isNewChat = false}) async {
     // create the chat
@@ -75,23 +110,23 @@ class ChatManager {
         document = chats.doc();
       }
 
-      UserModel? recipientKeys = await getUserKeyPair(userId: recipientId);
-
-      if (recipientKeys == null){
-        return "An error occurred while sending your message";
-      }
+      // UserModel? recipientKeys = await getUserKeyPair(userId: recipientId);
+      //
+      // if (recipientKeys == null) {
+      //   return "An error occurred while sending your message";
+      // }
 
       // encrypt the message that is being sent
-      String encryptedMessage = AESGCMEncryption.encryptAESCryptoJS(chat,
-          encryptionKeyManager.generateEncryptionSecretKey(
-              recipientPublicKey:recipientKeys.publicKey));
+      // String encryptedMessage = AESGCMEncryption.encryptAESCryptoJS(chat,
+      //     encryptionKeyManager.generateEncryptionSecretKey(
+      //         recipientPublicKey:recipientKeys.publicKey));
 
       await document.set({
         "senderId": senderId,
         "recipientId": recipientId,
         "chats": FieldValue.arrayUnion([
           {
-            "chat": encryptedMessage,
+            "chat": chat,
             "sender": senderId,
             "timeSent": DateTime.now()
           }
