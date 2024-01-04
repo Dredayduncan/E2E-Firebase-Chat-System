@@ -1,14 +1,10 @@
 import 'dart:developer';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:dummy/main.dart';
 import 'package:dummy/models/remote_signal_public_info_model.dart';
-import 'package:dummy/models/signal_protocol_info_model.dart';
 import 'package:dummy/models/user_model.dart';
-import 'package:dummy/utils/encryption_key_manager.dart';
-import 'package:dummy/utils/aes_gcm_encryption.dart';
 
 class ChatManager {
-  final String senderId = "1";
+  // final String senderId = "1";
   CollectionReference messages =
       FirebaseFirestore.instance.collection("messages");
   CollectionReference chats = FirebaseFirestore.instance.collection("chats");
@@ -94,6 +90,7 @@ class ChatManager {
       {required String recipientId,
       required String existingChatId,
       required String chat,
+      required String senderId,
       // required String recipientPushToken,
       required Function(String) onSubmitNewChat,
       isNewChat = false}) async {

@@ -9,9 +9,7 @@ import 'package:device_info_plus/device_info_plus.dart';
 import 'package:dummy/firebase_chat/chat_manager.dart';
 import 'package:dummy/models/remote_signal_public_info_model.dart';
 import 'package:dummy/models/signal_protocol_info_model.dart';
-import 'package:dummy/utils/encryption_key_manager.dart';
 import 'package:dummy/models/conversation_model.dart';
-import 'package:dummy/utils/aes_gcm_encryption.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -287,6 +285,7 @@ class _MyHomePageState extends State<MyHomePage> {
 
                                   await chatManager.sendChat(
                                     recipientId: recipientId,
+                                    senderId: senderId,
                                     existingChatId: chatId,
                                     isNewChat: chatId.isEmpty,
                                     chat: encryptedMessage,
