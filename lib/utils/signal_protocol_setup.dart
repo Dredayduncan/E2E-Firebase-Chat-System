@@ -14,9 +14,9 @@ import '../models/signal_protocol_info_model.dart';
 Future<SignalProtocolInfoModel> setupSignalProtocol(
     {required String userId}) async {
   // Create storage
-  final storage = FlutterSecureStorage();
+  const storage = FlutterSecureStorage();
 
-  // await storage.deleteAll();
+  await storage.deleteAll();
 
   // get the stored identity key pair
   String? storedKeyPair = await storage.read(key: "identityKeyPair");
