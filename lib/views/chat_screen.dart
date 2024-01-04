@@ -36,8 +36,8 @@ class _ChatScreenState extends State<ChatScreen> {
   ChatManager chatManager = ChatManager();
   String chatId = "";
   RemoteSignalPublicInfoModel? remoteSignalPublicInfoModel;
-  late PreKeyBundle preKeyBundle;
   SessionCipher? sessionCipher;
+  SessionCipher? remoteSessionCipher;
 
   // get the remote user's (recipient's) public signal credentials
   Future<RemoteSignalPublicInfoModel?> getRemoteSignalPublicInfoModel() async {
@@ -53,14 +53,40 @@ class _ChatScreenState extends State<ChatScreen> {
     return remoteSignalPublicInfoModel;
   }
 
+  createRemoteSessionCipher() async {
+    const recipientAddress = SignalProtocolAddress(recipientPhone, 1);
+
+    // create the remote session cipher
+    final signalProtocolStore = InMemorySignalProtocolStore(
+        widget.signalProtocolInfoModel.identityKeyPair, 1);
+    // const aliceAddress = SignalProtocolAddress(re, 1);
+//alice phone number and device id
+    remoteSessionCipher =
+        SessionCipher.fromStore(signalProtocolStore, recipientAddress);
+    for (final p in widget.signalProtocolInfoModel.preKeys) {
+      await signalProtocolStore.storePreKey(p.id, p);
+    }
+    await signalProtocolStore.storeSignedPreKey(
+        widget.signalProtocolInfoModel.signedPreKeyRecord.id,
+        widget.signalProtocolInfoModel.signedPreKeyRecord);
+//     final decodedBase64CipherText = base64Decode(encodedCipherText);
+//     if (ciphertext.getType() == CiphertextMessage.prekeyType) {
+//       await remoteSessionCipher.decryptWithCallback(
+//           PreKeySignalMessage(df), (plaintext) {
+// // ignore: avoid_print
+//         print("decrypted Message : ${utf8.decode(plaintext)}");
+//       });
+//     }
+  }
+
   // create the pre key bundle from the remote signal protocol info
-  initializePreKeyBundle(
+  initializeSessionCiphers(
       RemoteSignalPublicInfoModel? remoteSignalPublicInfoModel) async {
     if (remoteSignalPublicInfoModel != null) {
       // create the preKey bundle
-      preKeyBundle = PreKeyBundle(
+      PreKeyBundle preKeyBundle = PreKeyBundle(
           remoteSignalPublicInfoModel.registrationId,
-          1,
+          2,
           remoteSignalPublicInfoModel.preKeys[0].id,
           remoteSignalPublicInfoModel.preKeys[0].getKeyPair().publicKey,
           remoteSignalPublicInfoModel.signedPreKeyRecordId,
@@ -92,6 +118,9 @@ class _ChatScreenState extends State<ChatScreen> {
       sessionCipher = SessionCipher(sessionStore, preKeyStore,
           signedPreKeyStore, identityStore, recipientAddress);
 
+      //  create the remote session cipher
+      createRemoteSessionCipher();
+
       setState(() {});
     }
   }
@@ -99,7 +128,7 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void initState() {
     getRemoteSignalPublicInfoModel()
-        .then((value) => initializePreKeyBundle(value));
+        .then((value) => initializeSessionCiphers(value));
     super.initState();
   }
 
@@ -107,192 +136,194 @@ class _ChatScreenState extends State<ChatScreen> {
   Widget build(BuildContext context) {
     return remoteSignalPublicInfoModel == null
         ? const Scaffold(
-      body: CircularProgressIndicator(),
-    )
+            body: CircularProgressIndicator(),
+          )
         : Scaffold(
-      appBar: AppBar(title: const Text("E2E Chat")),
-      backgroundColor: const Color(0xFFF6F6F6),
-      bottomSheet: SizedBox(
-        width: double.infinity,
-        height: MediaQuery.of(context).size.height * 0.1,
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: TextField(
-                  controller: chatController,
-                  decoration: InputDecoration(
-                      hintText: 'Type message',
-                      icon: const Icon(Icons.message),
-                      suffixIcon: IconButton(
-                        onPressed: () async {
-                          if (chatController.text.trim().isEmpty) {
-                            return;
-                          }
+            appBar: AppBar(title: const Text("E2E Chat")),
+            backgroundColor: const Color(0xFFF6F6F6),
+            bottomSheet: SizedBox(
+              width: double.infinity,
+              height: MediaQuery.of(context).size.height * 0.1,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: TextField(
+                        controller: chatController,
+                        decoration: InputDecoration(
+                            hintText: 'Type message',
+                            icon: const Icon(Icons.message),
+                            suffixIcon: IconButton(
+                              onPressed: () async {
+                                if (chatController.text.trim().isEmpty) {
+                                  return;
+                                }
 
-                          if (sessionCipher != null) {
-                            //encrypt the text
-                            final cipherText = await sessionCipher!
-                                .encrypt(Uint8List.fromList(utf8
-                                .encode(chatController.text.trim())));
-                            //the cipher text string can be to large so,
-                            final encryptedMessage =
-                            base64Encode(cipherText.serialize());
+                                if (sessionCipher != null) {
+                                  //encrypt the text
+                                  final cipherText = await sessionCipher!
+                                      .encrypt(Uint8List.fromList(utf8
+                                          .encode(chatController.text.trim())));
+                                  //the cipher text string can be to large so,
+                                  final encryptedMessage =
+                                      base64Encode(cipherText.serialize());
 
-                            await chatManager.sendChat(
-                              recipientId: recipientId,
-                              senderId: senderId,
-                              existingChatId: chatId,
-                              isNewChat: chatId.isEmpty,
-                              chat: encryptedMessage,
-                              // recipientPushToken: '',
-                              onSubmitNewChat: (String value) {
-                                setState(() {
-                                  chatId = value;
-                                });
+                                  await chatManager.sendChat(
+                                    recipientId: recipientId,
+                                    senderId: senderId,
+                                    existingChatId: chatId,
+                                    isNewChat: chatId.isEmpty,
+                                    chat: encryptedMessage,
+                                    // recipientPushToken: '',
+                                    onSubmitNewChat: (String value) {
+                                      setState(() {
+                                        chatId = value;
+                                      });
+                                    },
+                                  );
+
+                                  chatController.clear();
+                                }
                               },
-                            );
-
-                            chatController.clear();
-                          }
-                        },
-                        icon: const Icon(
-                          Icons.send,
-                        ),
-                      )),
-                ),
+                              icon: const Icon(
+                                Icons.send,
+                              ),
+                            )),
+                      ),
+                    ),
+                  )
+                ],
               ),
-            )
-          ],
-        ),
-      ),
-      body: FutureBuilder(
-        future: chatManager.getChatId(
-            senderId: senderId, recipientId: recipientId),
-        builder: (BuildContext context, AsyncSnapshot<dynamic> snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const CircularProgressIndicator();
-          }
+            ),
+            body: FutureBuilder(
+              future: chatManager.getChatId(
+                  senderId: senderId, recipientId: recipientId),
+              builder: (BuildContext context, AsyncSnapshot<dynamic> snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const CircularProgressIndicator();
+                }
 
-          if (snapshot.hasData) {
-            if (snapshot.data is String) {
-              return const Center(
-                  child: Text("Start a new conversation"));
-            }
-
-            chatId = snapshot.data['chatId'];
-
-            return SingleChildScrollView(
-              reverse: true,
-              child: StreamBuilder<DocumentSnapshot>(
-                stream: ChatManager().getChatStream(
-                    chatId: chatId.isEmpty ? null : chatId),
-                builder: (BuildContext context,
-                    AsyncSnapshot<DocumentSnapshot> snapshot) {
-                  //Check if an error occurred
-                  if (snapshot.hasError) {
+                if (snapshot.hasData) {
+                  if (snapshot.data is String) {
                     return const Center(
-                      child: Text(
-                        "Something went wrong",
-                      ),
-                    );
+                        child: Text("Start a new conversation"));
                   }
 
-                  // Check if the connection is still loading
-                  if (snapshot.connectionState ==
-                      ConnectionState.waiting) {
-                    return const CircularProgressIndicator();
-                  }
+                  chatId = snapshot.data['chatId'];
 
-                  // Check if there has been no conversation between them
-                  if (!snapshot.data!.exists) {
-                    // indicate that the chat is new
-                    return const Center(
-                      child: Text(
-                        "Say Something.",
-                      ),
-                    );
-                  }
+                  return SingleChildScrollView(
+                    reverse: true,
+                    child: StreamBuilder<DocumentSnapshot>(
+                      stream: ChatManager().getChatStream(
+                          chatId: chatId.isEmpty ? null : chatId),
+                      builder: (BuildContext context,
+                          AsyncSnapshot<DocumentSnapshot> snapshot) {
+                        //Check if an error occurred
+                        if (snapshot.hasError) {
+                          return const Center(
+                            child: Text(
+                              "Something went wrong",
+                            ),
+                          );
+                        }
 
-                  // Get the chats between the user and the respondent
-                  DocumentSnapshot doc =
-                  snapshot.data as DocumentSnapshot;
+                        // Check if the connection is still loading
+                        if (snapshot.connectionState ==
+                            ConnectionState.waiting) {
+                          return const CircularProgressIndicator();
+                        }
 
-                  ConversationModel conversationModel =
-                  ConversationModel.fromJson(
-                      doc.data() as Map<String, dynamic>);
+                        // Check if there has been no conversation between them
+                        if (!snapshot.data!.exists) {
+                          // indicate that the chat is new
+                          return const Center(
+                            child: Text(
+                              "Say Something.",
+                            ),
+                          );
+                        }
 
-                  return Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Flexible(
-                        child: Padding(
-                          padding: EdgeInsets.only(
-                            bottom:
-                            MediaQuery.of(context).size.height * 0.11,
-                          ),
-                          child: ListView.builder(
-                            physics: const NeverScrollableScrollPhysics(),
-                            shrinkWrap: true,
-                            itemCount: conversationModel.chats.length,
-                            itemBuilder: ((context, index) {
-                              bool isMe =
-                                  conversationModel.chats[index].sender ==
-                                      senderId;
+                        // Get the chats between the user and the respondent
+                        DocumentSnapshot doc =
+                            snapshot.data as DocumentSnapshot;
 
-                              final decodedBase64CipherText =
-                              base64Decode(conversationModel
-                                  .chats[index].chat);
+                        ConversationModel conversationModel =
+                            ConversationModel.fromJson(
+                                doc.data() as Map<String, dynamic>);
 
-                              log("decodedCipherText: $decodedBase64CipherText");
+                        return Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Flexible(
+                              child: Padding(
+                                padding: EdgeInsets.only(
+                                  bottom:
+                                      MediaQuery.of(context).size.height * 0.11,
+                                ),
+                                child: ListView.builder(
+                                  physics: const NeverScrollableScrollPhysics(),
+                                  shrinkWrap: true,
+                                  itemCount: conversationModel.chats.length,
+                                  itemBuilder: ((context, index) {
+                                    bool isMe =
+                                        conversationModel.chats[index].sender ==
+                                            senderId;
 
-                              if (sessionCipher != null){
-                                return FutureBuilder(
-                                    future: sessionCipher!.decrypt(
-                                        PreKeySignalMessage(
-                                            decodedBase64CipherText)),
-                                    builder: (BuildContext context,
-                                        AsyncSnapshot<Uint8List?>
-                                        snapshot) {
-                                      String message = "";
+                                    log("chat: ${conversationModel.chats[index].chat}");
 
-                                      if (snapshot.connectionState ==
-                                          ConnectionState.waiting) {
-                                        message = "...";
-                                      }
+                                    Uint8List decodedBase64CipherText =
+                                        base64Decode(conversationModel
+                                            .chats[index].chat);
 
-                                      if (snapshot.hasData) {
-                                        log(snapshot.data.toString());
-                                        message = utf8
-                                            .decode(snapshot.data ?? []);
-                                      }
+                                    log("decodedCipherText: $decodedBase64CipherText");
 
-                                      return _buildMessage(message, isMe);
-                                    });
-                              }
+                                    if (sessionCipher != null) {
+                                      return FutureBuilder(
+                                          future: remoteSessionCipher!.decrypt(
+                                              PreKeySignalMessage(
+                                                  decodedBase64CipherText)),
+                                          builder: (BuildContext context,
+                                              AsyncSnapshot<Uint8List?>
+                                                  snapshot) {
+                                            String message = "";
 
-                              return _buildMessage(conversationModel.chats[index].chat, isMe);
+                                            if (snapshot.connectionState ==
+                                                ConnectionState.waiting) {
+                                              message = "...";
+                                            }
 
+                                            if (snapshot.hasData) {
+                                              log(snapshot.data.toString());
+                                              message = utf8
+                                                  .decode(snapshot.data ?? []);
+                                            }
 
-                            }),
-                          ),
-                        ),
-                      ),
-                    ],
+                                            return _buildMessage(message, isMe);
+                                          });
+                                    }
+
+                                    return _buildMessage(
+                                        conversationModel.chats[index].chat,
+                                        isMe);
+                                  }),
+                                ),
+                              ),
+                            ),
+                          ],
+                        );
+                      },
+                    ),
                   );
-                },
-              ),
-            );
-          }
+                }
 
-          return Center(
-            child: Text(snapshot.data.toString()),
+                return Center(
+                  child: Text(snapshot.data.toString()),
+                );
+              },
+            ),
           );
-        },
-      ),
-    );
   }
 
   _buildMessage(String message, bool isMe) {
