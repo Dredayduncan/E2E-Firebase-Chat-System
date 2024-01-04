@@ -23,20 +23,19 @@ Future<SignalProtocolInfoModel> setupSignalProtocol(
   String? storedPreKeys = await storage.read(key: "preKeys");
   String? storedRegistrationId = await storage.read(key: "registrationId");
   String? storedSignedPreKeyRecord =
-  await storage.read(key: "signedPreKeyRecord");
+      await storage.read(key: "signedPreKeyRecord");
 
   // check if there is an identity keypair in the keystore and load the info
   if (storedKeyPair != null &&
       storedPreKeys != null &&
       storedRegistrationId != null &&
       storedSignedPreKeyRecord != null) {
-
     IdentityKeyPair identityKeyPair = IdentityKeyPair.fromSerialized(
         Uint8List.fromList(List<int>.from(jsonDecode(storedKeyPair))));
 
     List<PreKeyRecord> preKeys = jsonDecode(storedPreKeys)
         .map<PreKeyRecord>((e) =>
-        PreKeyRecord.fromBuffer(Uint8List.fromList(List<int>.from(e))))
+            PreKeyRecord.fromBuffer(Uint8List.fromList(List<int>.from(e))))
         .toList();
     int registrationId = int.parse(storedRegistrationId);
 
@@ -59,7 +58,7 @@ Future<SignalProtocolInfoModel> setupSignalProtocol(
   final List<PreKeyRecord> preKeys = generatePreKeys(0, 100);
 
   final SignedPreKeyRecord signedPreKeyRecord =
-  generateSignedPreKey(identityKeyPair, 0);
+      generateSignedPreKey(identityKeyPair, 0);
 
   // store the generated keys and info
   storage.write(
@@ -95,13 +94,12 @@ Future<SignalProtocolInfoModel> setupSignalProtocol(
 
   // get the public info for the signal protocol credentials
   Map<String, dynamic> publicSignalInfo =
-  signalProtocolInfoModel.toPublicInfoMap();
+      signalProtocolInfoModel.toPublicInfoMap();
   publicSignalInfo['deviceId'] = deviceId; //add the user's device id
 
   // send the credentials to the server
   await ChatManager.storeLocalUserSignalInfo(
-      userId: userId,
-      publicSignalInfo: publicSignalInfo);
+      userId: userId, publicSignalInfo: publicSignalInfo);
 
   return signalProtocolInfoModel;
 }
