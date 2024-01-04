@@ -4,7 +4,9 @@ import 'dart:typed_data';
 import 'package:chat_bubbles/bubbles/bubble_special_three.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:dummy/firebase_chat/chat_manager.dart';
+import 'package:dummy/main.dart';
 import 'package:dummy/models/conversation_model.dart';
+import 'package:dummy/models/local_chat_db/local_conversation_model.dart';
 import 'package:dummy/models/remote_signal_public_info_model.dart';
 import 'package:dummy/models/signal_protocol_info_model.dart';
 import 'package:flutter/material.dart';
@@ -54,29 +56,31 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   createRemoteSessionCipher() async {
-    const recipientAddress = SignalProtocolAddress(recipientPhone, 1);
 
-    // create the remote session cipher
-    final signalProtocolStore = InMemorySignalProtocolStore(
-        widget.signalProtocolInfoModel.identityKeyPair, 1);
-    // const aliceAddress = SignalProtocolAddress(re, 1);
-//alice phone number and device id
-    remoteSessionCipher =
-        SessionCipher.fromStore(signalProtocolStore, recipientAddress);
-    for (final p in widget.signalProtocolInfoModel.preKeys) {
-      await signalProtocolStore.storePreKey(p.id, p);
+    try{
+
+
+      // create the remote session cipher
+      final signalProtocolStore = InMemorySignalProtocolStore(
+          widget.signalProtocolInfoModel.identityKeyPair, 1);
+
+      const recipientAddress = SignalProtocolAddress(recipientPhone, 1);
+
+      remoteSessionCipher =
+          SessionCipher.fromStore(signalProtocolStore, recipientAddress);
+      for (final p in widget.signalProtocolInfoModel.preKeys) {
+        await signalProtocolStore.storePreKey(p.id, p);
+      }
+      await signalProtocolStore.storeSignedPreKey(
+          widget.signalProtocolInfoModel.signedPreKeyRecord.id,
+          widget.signalProtocolInfoModel.signedPreKeyRecord);
     }
-    await signalProtocolStore.storeSignedPreKey(
-        widget.signalProtocolInfoModel.signedPreKeyRecord.id,
-        widget.signalProtocolInfoModel.signedPreKeyRecord);
-//     final decodedBase64CipherText = base64Decode(encodedCipherText);
-//     if (ciphertext.getType() == CiphertextMessage.prekeyType) {
-//       await remoteSessionCipher.decryptWithCallback(
-//           PreKeySignalMessage(df), (plaintext) {
-// // ignore: avoid_print
-//         print("decrypted Message : ${utf8.decode(plaintext)}");
-//       });
-//     }
+    catch(e, st){
+      log(e.toString(), stackTrace: st);
+
+    }
+
+
   }
 
   // create the pre key bundle from the remote signal protocol info
@@ -86,7 +90,7 @@ class _ChatScreenState extends State<ChatScreen> {
       // create the preKey bundle
       PreKeyBundle preKeyBundle = PreKeyBundle(
           remoteSignalPublicInfoModel.registrationId,
-          2,
+          1,
           remoteSignalPublicInfoModel.preKeys[0].id,
           remoteSignalPublicInfoModel.preKeys[0].getKeyPair().publicKey,
           remoteSignalPublicInfoModel.signedPreKeyRecordId,
@@ -279,7 +283,14 @@ class _ChatScreenState extends State<ChatScreen> {
 
                                     log("decodedCipherText: $decodedBase64CipherText");
 
-                                    if (sessionCipher != null) {
+
+
+                                    if (!isMe && remoteSessionCipher != null) {
+                                      remoteSessionCipher!.decryptWithCallback(PreKeySignalMessage(
+                                          decodedBase64CipherText), (plaintext) {
+
+                                      }).then((value) => log("PLAINTEXT: ${utf8.decode(value)}"));
+
                                       return FutureBuilder(
                                           future: remoteSessionCipher!.decrypt(
                                               PreKeySignalMessage(
@@ -287,20 +298,22 @@ class _ChatScreenState extends State<ChatScreen> {
                                           builder: (BuildContext context,
                                               AsyncSnapshot<Uint8List?>
                                                   snapshot) {
-                                            String message = "";
 
                                             if (snapshot.connectionState ==
                                                 ConnectionState.waiting) {
-                                              message = "...";
+                                              return _buildMessage("...", isMe);
                                             }
 
                                             if (snapshot.hasData) {
-                                              log(snapshot.data.toString());
-                                              message = utf8
-                                                  .decode(snapshot.data ?? []);
+                                              // store the decrypted message in the db
+                                              // allChats.put(LocalConversationModel())
+                                              log("HAS: ${snapshot.data.toString()}");
+
+                                              return _buildMessage(utf8
+                                                  .decode(snapshot.data!), isMe);
                                             }
 
-                                            return _buildMessage(message, isMe);
+                                            return _buildMessage("", isMe);
                                           });
                                     }
 

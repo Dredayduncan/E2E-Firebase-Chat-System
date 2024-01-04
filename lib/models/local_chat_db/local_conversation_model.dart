@@ -1,7 +1,10 @@
-import 'package:dummy/models/chat_model.dart';
+import 'package:isar/isar.dart';
 
-// class LocalConversationModel {
-//   final String conversationId;
-//   final String chatId;
-//   final String message;
-// }
+
+@collection
+class LocalConversationModel {
+  Id id = Isar.autoIncrement;
+  String? conversationId;
+  String? chatId;
+  String? message;
+}
