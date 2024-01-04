@@ -35,17 +35,17 @@ class ChatManager {
     return chats.doc(chatId).snapshots();
   }
 
-  // generate a shared secret key with the public key of the recipient
-  static Future getUserKeyPair({required String userId}) async {
-    DocumentSnapshot userInfo =
-        await FirebaseFirestore.instance.collection("users").doc(userId).get();
-
-    if (userInfo.exists) {
-      return UserModel.fromJson(userInfo.data() as Map<String, dynamic>);
-    }
-
-    return null;
-  }
+  // // generate a shared secret key with the public key of the recipient
+  // static Future getUserKeyPair({required String userId}) async {
+  //   DocumentSnapshot userInfo =
+  //       await FirebaseFirestore.instance.collection("users").doc(userId).get();
+  //
+  //   if (userInfo.exists) {
+  //     return UserModel.fromJson(userInfo.data() as Map<String, dynamic>);
+  //   }
+  //
+  //   return null;
+  // }
 
   static Future<bool> storeLocalUserSignalInfo(
       {required String userId,
