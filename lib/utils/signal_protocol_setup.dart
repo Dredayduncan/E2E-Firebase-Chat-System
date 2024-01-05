@@ -16,7 +16,7 @@ Future<SignalProtocolInfoModel> setupSignalProtocol(
   // Create storage
   const storage = FlutterSecureStorage();
 
-  // await storage.deleteAll();
+  await storage.deleteAll();
 
   // get the stored identity key pair
   String? storedKeyPair = await storage.read(key: "identityKeyPair");

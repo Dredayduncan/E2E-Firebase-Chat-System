@@ -1,7 +1,15 @@
+import 'dart:convert';
 import 'dart:developer';
+import 'dart:typed_data';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:dummy/models/local_chat_db/local_conversation_model.dart';
 import 'package:dummy/models/remote_signal_public_info_model.dart';
 import 'package:dummy/models/user_model.dart';
+import 'package:dummy/utils/main_setup.dart';
+import 'package:isar/isar.dart';
+import 'package:libsignal_protocol_dart/libsignal_protocol_dart.dart';
+
+import '../models/chat_model.dart';
 
 class ChatManager {
   // final String senderId = "1";
@@ -10,7 +18,7 @@ class ChatManager {
   CollectionReference chats = FirebaseFirestore.instance.collection("chats");
 
   // get the Id of chat between the current user and the selected respondent
-  Future getChatId(
+  Future getConversationId(
       {required String senderId, required String recipientId}) async {
     try {
       DocumentSnapshot document = await messages
@@ -31,21 +39,18 @@ class ChatManager {
   }
 
   // Get the chats the current user has with the given respondent
-  Stream<DocumentSnapshot>? getChatStream({required String? chatId}) {
-    return chats.doc(chatId).snapshots();
+  Stream<QuerySnapshot<ChatModel>>? getChatStream({required String? conversationId}) {
+    // return chats.doc(chatId).collection("messages").snapshots();
+    return chats
+        .doc(conversationId)
+        .collection("messages")
+        .orderBy("timeSent", descending: false)
+        .withConverter<ChatModel>(fromFirestore: (document, options) {
+      return ChatModel.fromJson(document.data() as Map<String, dynamic>);
+    }, toFirestore: (document, options) {
+      return document.toMap();
+    }).snapshots();
   }
-
-  // // generate a shared secret key with the public key of the recipient
-  // static Future getUserKeyPair({required String userId}) async {
-  //   DocumentSnapshot userInfo =
-  //       await FirebaseFirestore.instance.collection("users").doc(userId).get();
-  //
-  //   if (userInfo.exists) {
-  //     return UserModel.fromJson(userInfo.data() as Map<String, dynamic>);
-  //   }
-  //
-  //   return null;
-  // }
 
   static Future<bool> storeLocalUserSignalInfo(
       {required String userId,
@@ -72,8 +77,7 @@ class ChatManager {
 
       if (documentSnapshot.exists) {
         return RemoteSignalPublicInfoModel.fromMap(
-            documentSnapshot.get("publicSignalInfo")
-        );
+            documentSnapshot.get("publicSignalInfo"));
       }
 
       return "User does not exist";
@@ -88,55 +92,86 @@ class ChatManager {
   */
   Future sendChat(
       {required String recipientId,
-      required String existingChatId,
+      required String existingConversationId,
       required String chat,
       required String senderId,
+      required SessionCipher sessionCipher,
       // required String recipientPushToken,
       required Function(String) onSubmitNewChat,
       isNewChat = false}) async {
     // create the chat
     try {
       late DocumentReference document;
-      late String chatId;
-      // String secretKey;
 
       // generate a new chatId if the conversation is happening for the first time
-      if (existingChatId.isNotEmpty) {
-        document = chats.doc(existingChatId);
+      if (existingConversationId.isNotEmpty) {
+        document = chats.doc(existingConversationId);
       } else {
         document = chats.doc();
       }
 
-      // UserModel? recipientKeys = await getUserKeyPair(userId: recipientId);
-      //
-      // if (recipientKeys == null) {
-      //   return "An error occurred while sending your message";
-      // }
+      // get the id of the chat document that was just created
+      String conversationId = isNewChat ? document.id : existingConversationId;
 
-      // encrypt the message that is being sent
-      // String encryptedMessage = AESGCMEncryption.encryptAESCryptoJS(chat,
-      //     encryptionKeyManager.generateEncryptionSecretKey(
-      //         recipientPublicKey:recipientKeys.publicKey));
+      DocumentReference newMessageDocument = document.collection("messages").doc();
 
-      await document.set({
-        "senderId": senderId,
-        "recipientId": recipientId,
-        "chats": FieldValue.arrayUnion([
-          {
-            "chat": chat,
-            "sender": senderId,
-            "timeSent": DateTime.now()
-          }
-        ]),
-      }, SetOptions(merge: true));
+      // store the raw chat in the local db
+      IsarCollection<LocalConversationModel> allChats =
+          getIt<Isar>().localConversationModels;
+
+      // get this conversation from the local db
+      LocalConversationModel? allChatsForThisConversation =
+          await allChats.get(fastHash(conversationId));
+
+      // check if there is no conversation stored and create one
+      if (allChatsForThisConversation == null) {
+        // store the raw chat in the db
+        await getIt<Isar>().writeTxn(() async {
+          Map<String, dynamic> existingConversation = {newMessageDocument.id: chat};
+
+          await allChats.put(LocalConversationModel()
+            ..id = conversationId
+            ..message = jsonEncode(existingConversation));
+        });
+
+      }
+      else{
+
+        Map<String, dynamic> existingConversation = allChatsForThisConversation.message != null
+            ? jsonDecode(allChatsForThisConversation.message!)
+            : {};
+
+        // add the new chat to the messages in the existing conversation
+        existingConversation[newMessageDocument.id] = chat;
+
+        // store the raw chat in the db
+        await getIt<Isar>().writeTxn(() async {
+
+          await allChats.put(allChatsForThisConversation.copyWith(
+            message: jsonEncode(existingConversation)
+          ));
+        });
+
+      }
+
+      //encrypt the text
+      final cipherText =
+          await sessionCipher.encrypt(Uint8List.fromList(utf8.encode(chat)));
+      //the cipher text string can be to large so,
+      final encryptedMessage = base64Encode(cipherText.serialize());
+
+      await newMessageDocument.set({
+        "chat": encryptedMessage,
+        "sender": senderId,
+        "timeSent": DateTime.now(),
+        "conversationId": conversationId,
+        "id": newMessageDocument.id
+      });
 
       // update the id of the provider with the new chat Id
       if (isNewChat) {
         onSubmitNewChat(document.id);
       }
-
-      // get the id of the chat document that was just created
-      chatId = isNewChat ? document.id : existingChatId;
 
       // check if the conversation is happening for the first time and create a message record for both sender and recipient
       if (isNewChat) {
@@ -145,14 +180,14 @@ class ChatManager {
             .doc(senderId)
             .collection("recipients")
             .doc(recipientId)
-            .set({"chatId": chatId});
+            .set({"chatId": conversationId});
 
         // add the chat record to the recipient's data
         await messages
             .doc(recipientId)
             .collection("recipients")
             .doc(senderId)
-            .set({"chatId": chatId});
+            .set({"chatId": conversationId});
       }
 
       // // send a push notification

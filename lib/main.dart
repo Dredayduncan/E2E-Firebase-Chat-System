@@ -1,15 +1,24 @@
-import 'package:dummy/models/local_chat_db/local_conversation_model.dart';
+import 'dart:io';
+
 import 'package:dummy/models/signal_protocol_info_model.dart';
+import 'package:dummy/utils/main_setup.dart';
 import 'package:dummy/utils/signal_protocol_setup.dart';
 import 'package:dummy/views/chat_screen.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
-import 'package:isar/isar.dart';
-import 'package:path_provider/path_provider.dart';
 import 'firebase_options.dart';
 
-late Isar isar;
-late IsarCollection<LocalConversationModel> allChats;
+// sender as current user
+String senderId = "1";
+String recipientId = "2";
+String senderPhone = "+233123456789";
+String recipientPhone = "+233123456798";
+
+// recipient as current user
+// final String senderId = "2";
+// final String recipientId = "1";
+// final String senderPhone = "+233123456798";
+// final String recipientPhone = "+233123456789";
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -19,25 +28,22 @@ void main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
 
-  SignalProtocolInfoModel signalProtocolInfoModel =
-      await setupSignalProtocol(userId: senderId);
+  if (Platform.isAndroid){
+    senderId = "2";
+    recipientId = "1";
+    senderPhone = "+233123456798";
+    recipientPhone = "+233123456789";
+  }
 
-  // final dir = await getApplicationDocumentsDirectory();
-  // isar = await Isar.open(
-  //   [],
-  //   directory: dir.path,
-  // );
-  //
-  // allChats = isar.collection<LocalConversationModel>();
+  // check if app supports biometrics
+  await registerDependencies();
+  await getIt.allReady();
 
-  runApp(MyApp(
-    signalProtocolInfoModel: signalProtocolInfoModel,
-  ));
+  runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
-  final SignalProtocolInfoModel signalProtocolInfoModel;
-  const MyApp({super.key, required this.signalProtocolInfoModel});
+  const MyApp({super.key});
 
   // This widget is the root of your application.
   @override
@@ -48,9 +54,7 @@ class MyApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
         useMaterial3: true,
       ),
-      home: ChatScreen(
-        signalProtocolInfoModel: signalProtocolInfoModel,
-      ),
+      home: const ChatScreen(),
     );
   }
 }
