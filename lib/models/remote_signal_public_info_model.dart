@@ -10,7 +10,8 @@ class RemoteSignalPublicInfoModel {
   final List<PreKeyRecord> preKeys;
   final int signedPreKeyRecordId;
   final int registrationId;
-  final String deviceId;
+  final int deviceId;
+  final String phoneNumber;
 
 //<editor-fold desc="Data Methods">
 
@@ -22,20 +23,24 @@ class RemoteSignalPublicInfoModel {
     required this.signedPreKeyRecordId,
     required this.registrationId,
     required this.deviceId,
+    required this.phoneNumber,
   });
 
 // fa@override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      (other is RemoteSignalPublicInfoModel &&
-          runtimeType == other.runtimeType &&
-          identityKey == other.identityKey &&
-          signedPublicPreKey == other.signedPublicPreKey &&
-          signedPreKeySignature == other.signedPreKeySignature &&
-          preKeys == other.preKeys &&
-          signedPreKeyRecordId == other.signedPreKeyRecordId &&
-          registrationId == other.registrationId &&
-          deviceId == other.deviceId);
+          (other is RemoteSignalPublicInfoModel &&
+              runtimeType == other.runtimeType &&
+              identityKey == other.identityKey &&
+              signedPublicPreKey == other.signedPublicPreKey &&
+              signedPreKeySignature == other.signedPreKeySignature &&
+              preKeys == other.preKeys &&
+              signedPreKeyRecordId == other.signedPreKeyRecordId &&
+              registrationId == other.registrationId &&
+              deviceId == other.deviceId &&
+              phoneNumber == other.phoneNumber
+          );
+
 
   @override
   int get hashCode =>
@@ -45,7 +50,9 @@ class RemoteSignalPublicInfoModel {
       preKeys.hashCode ^
       signedPreKeyRecordId.hashCode ^
       registrationId.hashCode ^
-      deviceId.hashCode;
+      deviceId.hashCode ^
+      phoneNumber.hashCode;
+
 
   @override
   String toString() {
@@ -57,8 +64,10 @@ class RemoteSignalPublicInfoModel {
         ' signedPreKeyRecordId: $signedPreKeyRecordId,' +
         ' registrationId: $registrationId,' +
         ' deviceId: $deviceId,' +
+        ' phoneNumber: $phoneNumber,' +
         '}';
   }
+
 
   RemoteSignalPublicInfoModel copyWith({
     IdentityKey? identityKey,
@@ -67,19 +76,22 @@ class RemoteSignalPublicInfoModel {
     List<PreKeyRecord>? preKeys,
     int? signedPreKeyRecordId,
     int? registrationId,
-    String? deviceId,
+    int? deviceId,
+    String? phoneNumber,
   }) {
     return RemoteSignalPublicInfoModel(
       identityKey: identityKey ?? this.identityKey,
       signedPublicPreKey: signedPublicPreKey ?? this.signedPublicPreKey,
-      signedPreKeySignature:
-          signedPreKeySignature ?? this.signedPreKeySignature,
+      signedPreKeySignature: signedPreKeySignature ??
+          this.signedPreKeySignature,
       preKeys: preKeys ?? this.preKeys,
       signedPreKeyRecordId: signedPreKeyRecordId ?? this.signedPreKeyRecordId,
       registrationId: registrationId ?? this.registrationId,
       deviceId: deviceId ?? this.deviceId,
+      phoneNumber: phoneNumber ?? this.phoneNumber,
     );
   }
+
 
   Map<String, dynamic> toMap() {
     return {
@@ -90,6 +102,7 @@ class RemoteSignalPublicInfoModel {
       'signedPreKeyRecordId': this.signedPreKeyRecordId,
       'registrationId': this.registrationId,
       'deviceId': this.deviceId,
+      'phoneNumber': this.phoneNumber,
     };
   }
 
@@ -108,8 +121,12 @@ class RemoteSignalPublicInfoModel {
                 Uint8List.fromList(List<int>.from(jsonDecode(element))))).toList(),
         signedPreKeyRecordId: int.parse(map['signedPreKeyId']),
         registrationId: int.parse(map['registrationId']),
-        deviceId: map['deviceId']);
+        deviceId: int.parse(map['deviceId'].toString()),
+        phoneNumber: map['phoneNumber']
+    );
+
   }
+
 
   //</editor-fold>
 }
