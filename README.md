@@ -3,9 +3,6 @@
 
 ## Tools and Technologies
 - Signal Protocol
-
-## Implementation Explanation
----
-- coming soon...
+- Isar
 
 
