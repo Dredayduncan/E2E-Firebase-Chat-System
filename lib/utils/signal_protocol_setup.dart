@@ -5,6 +5,8 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:device_info_plus/device_info_plus.dart';
+import 'package:dummy/main.dart';
+import 'package:dummy/models/local_chat_db/local_conversation_model.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:libsignal_protocol_dart/libsignal_protocol_dart.dart';
 
@@ -16,7 +18,7 @@ Future<SignalProtocolInfoModel> setupSignalProtocol(
   // Create storage
   const storage = FlutterSecureStorage();
 
-  await storage.deleteAll();
+  // await storage.deleteAll();
 
   // get the stored identity key pair
   String? storedKeyPair = await storage.read(key: "identityKeyPair");
@@ -24,6 +26,23 @@ Future<SignalProtocolInfoModel> setupSignalProtocol(
   String? storedRegistrationId = await storage.read(key: "registrationId");
   String? storedSignedPreKeyRecord =
       await storage.read(key: "signedPreKeyRecord");
+
+  // get deviceId
+  final deviceInfo = DeviceInfoPlugin();
+
+  String deviceId = "";
+
+  if (Platform.isIOS) {
+    // import 'dart:io'
+    var iosDeviceInfo = await deviceInfo.iosInfo;
+    deviceId = iosDeviceInfo.identifierForVendor ?? ""; // unique ID on iOS
+  } else if (Platform.isAndroid) {
+    var androidDeviceInfo = await deviceInfo.androidInfo;
+    deviceId = androidDeviceInfo.id; // unique ID on Android
+  }
+
+  // use the fast hash to hash the deviceId to an int value
+  int hashedDeviceId = fastHash(deviceId);
 
   // check if there is an identity keypair in the keystore and load the info
   if (storedKeyPair != null &&
@@ -46,6 +65,8 @@ Future<SignalProtocolInfoModel> setupSignalProtocol(
     return SignalProtocolInfoModel(
         identityKeyPair: identityKeyPair,
         preKeys: preKeys,
+        deviceId: hashedDeviceId,
+        phoneNumber: userPhoneNumber,
         signedPreKeyRecord: signedPreKeyRecord,
         registrationId: registrationId);
   }
@@ -58,7 +79,7 @@ Future<SignalProtocolInfoModel> setupSignalProtocol(
   final List<PreKeyRecord> preKeys = generatePreKeys(0, 100);
 
   final SignedPreKeyRecord signedPreKeyRecord =
-      generateSignedPreKey(identityKeyPair, 0);
+      generateSignedPreKey(identityKeyPair, 1);
 
   // store the generated keys and info
   storage.write(
@@ -72,34 +93,19 @@ Future<SignalProtocolInfoModel> setupSignalProtocol(
       key: "signedPreKeyRecord",
       value: jsonEncode(signedPreKeyRecord.serialize()));
 
+  // create the signal protocol model
   SignalProtocolInfoModel signalProtocolInfoModel = SignalProtocolInfoModel(
       identityKeyPair: identityKeyPair,
       preKeys: preKeys,
+      phoneNumber: userPhoneNumber,
       signedPreKeyRecord: signedPreKeyRecord,
+      deviceId: hashedDeviceId,
       registrationId: registrationId);
-
-  // get deviceId
-  final deviceInfo = await DeviceInfoPlugin();
-
-  String deviceId = "";
-
-  if (Platform.isIOS) {
-    // import 'dart:io'
-    var iosDeviceInfo = await deviceInfo.iosInfo;
-    deviceId = iosDeviceInfo.identifierForVendor ?? ""; // unique ID on iOS
-  } else if (Platform.isAndroid) {
-    var androidDeviceInfo = await deviceInfo.androidInfo;
-    deviceId = androidDeviceInfo.id; // unique ID on Android
-  }
-
-  // get the public info for the signal protocol credentials
-  Map<String, dynamic> publicSignalInfo =
-      signalProtocolInfoModel.toPublicInfoMap();
-  publicSignalInfo['deviceId'] = deviceId; //add the user's device id
 
   // send the credentials to the server
   await ChatManager.storeLocalUserSignalInfo(
-      userId: userId, publicSignalInfo: publicSignalInfo);
+      userId: userId,
+      publicSignalInfo: signalProtocolInfoModel.toPublicInfoMap());
 
   return signalProtocolInfoModel;
 }

@@ -14,8 +14,8 @@ import '../models/chat_model.dart';
 class ChatManager {
   // final String senderId = "1";
   CollectionReference messages =
-      FirebaseFirestore.instance.collection("messages");
-  CollectionReference chats = FirebaseFirestore.instance.collection("chats");
+  getIt.get<FirebaseFirestore>().collection("messages");
+  CollectionReference chats = getIt.get<FirebaseFirestore>().collection("chats");
 
   // get the Id of chat between the current user and the selected respondent
   Future getConversationId(
@@ -56,7 +56,7 @@ class ChatManager {
       {required String userId,
       required Map<String, dynamic> publicSignalInfo}) async {
     try {
-      await FirebaseFirestore.instance
+      await getIt.get<FirebaseFirestore>()
           .collection("users")
           .doc(userId)
           .set({"publicSignalInfo": publicSignalInfo});
@@ -70,7 +70,7 @@ class ChatManager {
 
   static Future getUserSignalInfo({required String userId}) async {
     try {
-      DocumentSnapshot documentSnapshot = await FirebaseFirestore.instance
+      DocumentSnapshot documentSnapshot = await getIt.get<FirebaseFirestore>()
           .collection("users")
           .doc(userId)
           .get();
@@ -173,21 +173,27 @@ class ChatManager {
         onSubmitNewChat(document.id);
       }
 
-      // check if the conversation is happening for the first time and create a message record for both sender and recipient
+      // check if the conversation is happening for the first time
+      // and create a message record for both sender and recipient
       if (isNewChat) {
-        // add the chat record to the sender's data
-        await messages
-            .doc(senderId)
-            .collection("recipients")
-            .doc(recipientId)
-            .set({"chatId": conversationId});
 
-        // add the chat record to the recipient's data
-        await messages
+        // Create a batch of Firebase updates.
+        WriteBatch batch = getIt.get<FirebaseFirestore>().batch();
+
+        // add the conversation to the sender's record
+        batch.set(messages
+            .doc(senderId)
+            .collection("recipients")
+            .doc(recipientId), {"chatId": conversationId});
+
+        // add the conversation to the recipient's record
+        batch.set(messages
             .doc(recipientId)
             .collection("recipients")
-            .doc(senderId)
-            .set({"chatId": conversationId});
+            .doc(senderId), {"chatId": conversationId});
+
+        // update the firebase records
+        await batch.commit();
       }
 
       // // send a push notification

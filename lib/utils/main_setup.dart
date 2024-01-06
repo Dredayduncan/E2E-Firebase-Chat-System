@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:dummy/utils/signal_protocol_setup.dart';
 import 'package:dummy/views/chat_screen.dart';
 import 'package:get_it/get_it.dart';
@@ -17,9 +18,11 @@ Future<void> registerDependencies() async {
     directory: dir.path,
   );
 
+  getIt.registerSingleton<FirebaseFirestore>(FirebaseFirestore.instance);
+
   // get Signal protocols info
   SignalProtocolInfoModel signalProtocolInfoModel =
-      await setupSignalProtocol(userId: senderId);
+  await setupSignalProtocol(userId: senderId);
 
   getIt.registerSingleton<Isar>(isar);
   getIt.registerSingleton<SignalProtocolInfoModel>(signalProtocolInfoModel);
